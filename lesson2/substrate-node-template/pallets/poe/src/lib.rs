@@ -108,7 +108,7 @@ decl_module! {
 			ensure!(sender != to, Error::<T>::SendEquToTrans);
 
 			let (owner, block_number) = Proofs::<T>::get(&claim).ok_or("claim is not exist")?;
-			ensure!(owner == sender, Error::<T>::NotClaimOwner);ß
+			ensure!(owner == sender, Error::<T>::NotClaimOwner);
 
 			Proofs::<T>::insert(&claim, (to.clone(), block_number));
 
