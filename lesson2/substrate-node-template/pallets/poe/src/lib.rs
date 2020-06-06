@@ -11,8 +11,7 @@
 
 use frame_support::{decl_module, decl_storage, decl_event, decl_error, dispatch, ensure};
 use frame_system::{self as system, ensure_signed};
-use frame_support::inherent::Vec;
-
+use sp_std::prelude::*;
 
 #[cfg(test)]
 mod mock;
