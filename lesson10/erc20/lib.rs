@@ -14,7 +14,7 @@ mod erc20 {
     struct Erc20 {
         total_supple: storage::Value<Balance>,
         balances: storage::HashMap<AccountId, Balance>,
-        allowance: storage::HashMap<(AccountId, AccountId), Balance>
+        allowances: storage::HashMap<(AccountId, AccountId), Balance>
     }
 
     #[ink(event)]
@@ -23,6 +23,16 @@ mod erc20 {
         from: Option<AccountId>,
         #[ink(topic)]
         to: Option<AccountId>,
+        #[ink(topic)]
+        value: Balance,
+    }
+
+    #[ink(event)]
+    struct Approval {
+        #[ink(topic)]
+        owner: AccountId,
+        #[ink(topic)]
+        spender: AccountId,
         #[ink(topic)]
         value: Balance,
     }
@@ -51,15 +61,23 @@ mod erc20 {
             self.balance_of_or_zero(&owner)
         }
 
-        // #[ink(message)]
-        // fn approve(&mut self, to: AccountId, value: Balance) -> bool {
+        #[ink(message)]
+        fn approve(&mut self, to: AccountId, value: Balance) -> bool {
+            let owner = self.env().caller();
+            self.allowances.insert((owner, to), value);
+            self.env().emit_event(Approval{
+                owner: owner,
+                spender: to,
+                value: value,
+            });
+            true
+        }
 
-        // }
-
-        // #[ink(message)]
-        // fn approval(&self, to: AccountId) -> Balance {
-
-        // }
+        #[ink(message)]
+        fn approval(&self, to: AccountId) -> Balance {
+            let owner = self.env().caller();
+            *self.allowances.get(&(owner, to)).unwrap_or(&0)
+        }
 
         #[ink(message)]
         fn transfer(&mut self, to: AccountId, value: Balance) -> bool {
@@ -81,14 +99,52 @@ mod erc20 {
 
         }
 
+        #[ink(message)]
+        fn transfer_from(
+            &mut self,
+            from: AccountId,
+            to: AccountId,
+            value: Balance,
+        ) -> bool {
+            let caller = self.env().caller();
+            let allowance = self.allowance_of_or_zero(&from, &caller);
+            if allowance < value {
+                return false
+            }
+            self.allowances.insert((from, caller), allowance - value);
+            self.transfer_from_to(from, to, value)
+        }
+
+        fn transfer_from_to(
+            &mut self,
+            from: AccountId,
+            to: AccountId,
+            value: Balance,
+        ) -> bool {
+            let from_balance = self.balance_of_or_zero(&from);
+            if from_balance < value {
+                return false
+            }
+            self.balances.insert(from, from_balance - value);
+            let to_balance = self.balance_of_or_zero(&to);
+            self.balances.insert(to, to_balance + value);
+            self.env().emit_event(Transfer {
+                from: Some(from),
+                to: Some(to),
+                value,
+            });
+            true
+        }
+
+
         fn balance_of_or_zero(&self, owner:&AccountId) -> Balance{
             *self.balances.get(owner).unwrap_or(&0)
         }
 
-        // fn allowance_of_or_zero(&self, owner: &AccountId, spender: &AccountId) -> Balance {
-        //     // ACTION: `get` the `allowances` of `(owner, spender)` and `unwrap_or` return `0`.
-        //     *self.allowance.get((owner, spender)).unwrap_or(&0);
-        // }
+        fn allowance_of_or_zero(&self, owner: &AccountId, spender: &AccountId) -> Balance {
+            // ACTION: `get` the `allowances` of `(owner, spender)` and `unwrap_or` return `0`.
+            *self.allowances.get(&(*owner, *spender)).unwrap_or(&0)
+        }
 
     }
 
@@ -105,6 +161,12 @@ mod erc20 {
         fn new_works() {
             let mut erc20 = Erc20::new(666);
             assert_eq!(erc20.total_supple(), 666);
+
+            // let accounts = env::test::default_accounts::<env::DefaultEnvTypes>()
+            //         .expect("Cannot get accounts");
+            // assert_eq!(erc20.transfer_from(accounts.alice, accounts.eve, 10), false);
+            // assert_eq!(erc20.approve(accounts.bob, 10), true);
+            // assert_eq!(erc20.approval(accounts.bob), 10);
         }
     }
 }
